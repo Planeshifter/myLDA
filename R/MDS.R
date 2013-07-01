@@ -19,7 +19,7 @@ getMDS <- function(LDAobj)
   
   x=points[,1]
   y=points[,2] # get topic coordinates 
-  topic.docs <- table(as.factor(temp$Topics(1)))
+  topic.docs <- table(as.factor(LDAobj$Topics(1)))
   
   for (k in 1:K)
   {
@@ -102,11 +102,11 @@ q <- ggplot(df,aes(x=x,y=y,label=label))+geom_text()
 q
 }
 
-getDocAssignments <- function()
+getDocAssignments <- function(LDAobj)
 {
 docs <- list()
-tops <- temp$Topics(1)
-cont <- temp$content_original
+tops <- LDAobj$Topics(1)
+cont <- LDAobj$content_original
 for (i in 1:400)
   {
   docs[[i]]$content <- cont[i]
@@ -114,3 +114,4 @@ for (i in 1:400)
   }
 return(docs)
 }
+

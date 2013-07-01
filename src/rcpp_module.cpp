@@ -53,6 +53,9 @@ public:
   boost::mt19937 rng; // seed for random sampling
   vector<string> stopwords_en;
   vector<string> stopwords_de;
+  string stop_de_path;
+  string stop_en_path;
+  
   enum language 
   {
   ENGLISH = 0, 
@@ -133,6 +136,9 @@ LDA::LDA(Reference Obj)
   title = as<vector<string> >(Obj.field("title"));
   K = as<int>(Obj.field("K"));
   
+  
+  stop_de_path = as<string>(Obj.field("stop_de_path"));
+  stop_en_path = as<string>(Obj.field("stop_en_path"));
   stopwords_en =  read_stopwords(ENGLISH);
   stopwords_de =  read_stopwords(GERMAN);
   
@@ -257,8 +263,11 @@ vector<std::string> LDA::read_stopwords(int lang)
   vector<std::string> output;
   string line;
   
-  ifstream myfile("stopwords/english.stop");
-  ifstream myfile2("stopwords/stopGerman.txt");
+  const char * stop_en_char = stop_en_path.c_str();
+  const char * stop_de_char = stop_de_path.c_str();
+    
+  ifstream myfile(stop_en_char);
+  ifstream myfile2(stop_de_char);
   
   switch(lang){
   case ENGLISH:   
@@ -1161,6 +1170,7 @@ class_<LDA>( "LDA" )
 .field("D",&LDA::D)
 .field("W",&LDA::W)
 .field("Vocabulary",&LDA::Vocabulary)
+.field("stop_en_path",&LDA::stop_en_path)
 .field("phi_avg",&LDA::phi_avg)
 .field("theta_avg",&LDA::theta_avg)
 .field("PhiProdMat",&LDA::PhiProdMat)

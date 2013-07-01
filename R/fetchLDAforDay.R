@@ -9,6 +9,6 @@ fetchLDAforDay <- function(day)
   mds.results <- getMDS(LDA_model)
   require(RJSONIO)
   mds.results.json <- toJSON(mds.results)
-  file_name <- paste(gsub(pattern="-",replacement="_",x=day),".json",sep="")
+  file_name <- paste("json_data/", gsub(pattern="-",replacement="_",x=day), ".json", sep="")
   writeLines(mds.results.json,con=file_name)
   }

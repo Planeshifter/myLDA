@@ -17,7 +17,9 @@ myLDA_class <- setRefClass("myLDA_class",
                              nw = "matrix", # nw_ij number of word i assigned to topic j
                              nd = "matrix", # nd_dj number of times topic j appears in doc d
                              nw_sum = "numeric", # nw_sum_j total number of words assigned to topic j
-                             nd_sum = "numeric" # doc length of doc d
+                             nd_sum = "numeric", # doc length of doc d,
+                             stop_de_path = "character", # path to german stopwords
+                             stop_en_path = "character" # path to english stopwords
                              
                            ),
                            methods=list(																												
@@ -30,6 +32,8 @@ myLDA_class <- setRefClass("myLDA_class",
                                .self$K <- K
                                .self$alpha <- alpha;
                                .self$beta <- beta;
+                               .self$stop_de_path <- system.file("german.stop",package="myLDA2")
+                               .self$stop_en_path <- system.file("english.stop",package="myLDA2")
                                
                              }
                            )
