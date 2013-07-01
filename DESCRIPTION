@@ -1,0 +1,13 @@
+Package: myLDA2
+Type: Package
+Title: Implementations of LDA for my Master's Thesis
+Version: 1.0
+Date: 2013-07-01
+Author: Philipp Burckhardt
+Maintainer: Philipp Burckhardt <philipp.burckhardt@mansfield.ox.ac.uk>
+Description: More about what it does (maybe more than one line)
+License: What license is it under?
+Depends: methods, Rcpp (>= 0.10.3), RcppArmadillo (>= 0.3.900.0)
+Imports: RJSONIO, newscrapeR
+LinkingTo: Rcpp, RcppArmadillo
+RcppModules: yada

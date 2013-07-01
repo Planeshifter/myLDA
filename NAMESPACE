@@ -1,0 +1,3 @@
+useDynLib(myLDA2)
+exportPattern("^[[:alpha:]]+")
+import( Rcpp )
