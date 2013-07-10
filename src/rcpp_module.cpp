@@ -31,6 +31,8 @@ public:
   int K; // K: number of topics
   int W; // W: size of Vocabulary
   int D; // D: number of documents
+  double alpha; // hyper-parameter for Dirichlet prior on theta
+  double beta; //  hyper-parameter for Dirichlet prior on phi
   vector<string> content; // vector of article body texts
   vector<string> article_preview; 
   vector<string> url; // vector of article links
@@ -68,6 +70,7 @@ public:
   void ExtractWords();
   void ConstructVocabulary();
   void InitSampling();
+  vector<string> remove_empty_articles(vector<string>);
   int SampleZ();
   
   void collapsedGibbs(int iter, int burnin, int thin);
@@ -105,8 +108,6 @@ public:
   
 private:
   vector< vector<int> > CreateIntMatrix(List input);
-  double alpha; // hyper-parameter for Dirichlet prior on theta
-  double beta; //  hyper-parameter for Dirichlet prior on phi
   double sigma; // for Langevin sampler
   
   NumericMatrix get_phis();
@@ -124,6 +125,8 @@ private:
 LDA::LDA(Reference Obj)
   {  
   content = as<vector<string> >(Obj.field("corpus"));
+  vector<int> empty_articles = mark_empty_articles(content);
+  content = remove_empty_articles(content);
   D = content.size(); 
 
   for (int d=0;d<D;d++)
@@ -204,6 +207,34 @@ void LDA::ConstructVocabulary()
       }
     }
   w_num = w_num_temp;
+  }
+  
+vector<int> LDA::mark_empty_articles(vector<string> input)
+  {
+  int len = input.size();
+  int empty_counter = 0;
+  vector<int> output;
+  for (int i = 0; i < len; i++)
+    {
+    if (input[i] == "") empty_counter++;
+    else output.push_back(i);      
+    }
+  Rcout << "Articles with empty content were marked. There are" << empty_counter << " empty articles.";
+  return output;
+  }
+  
+vector<string> LDA::remove_empty_articles(vector<string> input)
+  {
+  int len = input.size();
+  int empty_counter = 0;
+  vector<string> output;
+  for (int i = 0; i < len; i++)
+    {
+    if (input[i] == "") empty_counter++;
+    else output.push_back(input[i]);      
+    }
+  Rcout << "Articles with empty content are removed. There have been " << empty_counter << " empty articles.";
+  return output;
   }
 
 int LDA::SampleZ()  
@@ -1169,6 +1200,8 @@ class_<LDA>( "LDA" )
 .field("K", &LDA::K)
 .field("D",&LDA::D)
 .field("W",&LDA::W)
+.field("alpha",&LDA::alpha)
+.field("beta",&LDA::beta)
 .field("Vocabulary",&LDA::Vocabulary)
 .field("stop_en_path",&LDA::stop_en_path)
 .field("phi_avg",&LDA::phi_avg)
