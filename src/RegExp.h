@@ -1,13 +1,29 @@
+#ifndef _myLDA2_RCPP_REGEXP_H
+#define _myLDA2_RCPP_REGEXP_H
+
 #include <RcppArmadillo.h>
 // [[Rcpp::depends("RcppArmadillo")]]
 
-#include <string>
+#include <boost/math/special_functions/gamma.hpp>
+#include <boost/random.hpp>
+#include <boost/random/gamma_distribution.hpp>
+#include <boost/math/distributions.hpp>
 #include <boost/regex.hpp>
 #include <boost/algorithm/string.hpp>
+//#include <RcppArmadilloExtensions/sample.h>
+
+#include <numeric>
+#include <algorithm>
+#include <map>
+#include <string>
+#include <iostream>
+#include <fstream>
 
 using namespace Rcpp;
+using namespace arma;
 using namespace std;
 using namespace boost;
+using namespace boost::math;
 
 std::string remove_numbers(std::string input)
 {
@@ -137,3 +153,4 @@ void print_vector(vector<std::string> input)
 for( std::vector<string>::iterator i = input.begin(); i != input.end(); ++i)
 	    Rcout << *i << '\n';
 }
+#endif

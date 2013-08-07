@@ -3,7 +3,7 @@ fetchLDAforDay <- function(day)
   day <- as.Date(day)
   require(newscrapeR)
   artList <- fetch_SQL(db_name="newscrapeR.db",from=day,to=day+1)
-  LDA_model <- myLDA(artList, K = 12)
+  LDA_model <- myLDA(artList, K = 20)
   LDA_model$collapsedGibbs(1000,100,100)
   
   mds.results <- getMDS(LDA_model)

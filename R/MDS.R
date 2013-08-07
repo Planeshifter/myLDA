@@ -3,6 +3,7 @@ getMDS <- function(LDAobj)
   require(vegan)
   D <- LDAobj$D
   phi <- LDAobj$phi_avg
+  theta <- LDAobj$theta_avg
   
   TermMatrix <- LDAobj$Terms(20)
   K <- nrow(TermMatrix)
@@ -45,6 +46,7 @@ getMDS <- function(LDAobj)
   title_in_k <- title[top_assignments==k]
   url_in_k <- url[top_assignments==k]
   preview_in_k <- article_preview[top_assignments==k]
+  theta_in_k <- theta[top_assignments==k,]
   
   topic$docs <- list()
   for (d in 1:length(title_in_k))
@@ -53,6 +55,7 @@ getMDS <- function(LDAobj)
     doc_elem$url = url_in_k[d]
     doc_elem$title = title_in_k[d]
     doc_elem$preview = preview_in_k[d]
+    doc_elem$topic = theta_in_k[d,]
     topic$docs[[length(topic$docs)+1]] <- doc_elem
     }
   ret[[length(ret)+1]] <- topic

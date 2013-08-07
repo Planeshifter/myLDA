@@ -1,29 +1,4 @@
-#include <RcppArmadillo.h>
-// [[Rcpp::depends("RcppArmadillo")]]
-
 #include "RegExp.h"
-
-#include <boost/math/special_functions/gamma.hpp>
-#include <boost/random.hpp>
-#include <boost/random/gamma_distribution.hpp>
-#include <boost/math/distributions.hpp>
-#include <boost/regex.hpp>
-#include <boost/algorithm/string.hpp>
-#include <RcppArmadilloExtensions/sample.h>
-
-#include <numeric>
-#include <algorithm>
-#include <map>
-#include <string>
-#include <iostream>
-#include <fstream>
-
-using namespace Rcpp;
-using namespace arma;
-using namespace std;
-using namespace boost;
-using namespace boost::math;
-
 
 class LDA {
 public:
@@ -70,7 +45,8 @@ public:
   void ExtractWords();
   void ConstructVocabulary();
   void InitSampling();
-  vector<string> remove_empty_articles(vector<string>);
+  vector<string> remove_empty_articles(vector<string> input, vector<int> empty);
+  vector<int> mark_empty_articles(vector<string> input);
   int SampleZ();
   
   void collapsedGibbs(int iter, int burnin, int thin);
@@ -126,7 +102,7 @@ LDA::LDA(Reference Obj)
   {  
   content = as<vector<string> >(Obj.field("corpus"));
   vector<int> empty_articles = mark_empty_articles(content);
-  content = remove_empty_articles(content);
+  content = remove_empty_articles(content, empty_articles);
   D = content.size(); 
 
   for (int d=0;d<D;d++)
@@ -136,7 +112,11 @@ LDA::LDA(Reference Obj)
     }
     
   url = as<vector<string> >(Obj.field("url"));
+  url = remove_empty_articles(url, empty_articles);
+  
   title = as<vector<string> >(Obj.field("title"));
+  title = remove_empty_articles(title, empty_articles);
+  
   K = as<int>(Obj.field("K"));
   
   
@@ -213,27 +193,27 @@ vector<int> LDA::mark_empty_articles(vector<string> input)
   {
   int len = input.size();
   int empty_counter = 0;
-  vector<int> output;
+  vector<int> nonempty_articles;
   for (int i = 0; i < len; i++)
     {
     if (input[i] == "") empty_counter++;
-    else output.push_back(i);      
+    else nonempty_articles.push_back(i);    
     }
   Rcout << "Articles with empty content were marked. There are" << empty_counter << " empty articles.";
-  return output;
+  return nonempty_articles;
   }
   
-vector<string> LDA::remove_empty_articles(vector<string> input)
+vector<string> LDA::remove_empty_articles(vector<string> input, vector<int> nonempty)
   {
   int len = input.size();
   int empty_counter = 0;
   vector<string> output;
-  for (int i = 0; i < len; i++)
+  
+  for(std::vector<int>::iterator it = nonempty.begin(); it != nonempty.end(); ++it) 
     {
-    if (input[i] == "") empty_counter++;
-    else output.push_back(input[i]);      
+    Rcout << *it; 
+    output.push_back(input[*it]);
     }
-  Rcout << "Articles with empty content are removed. There have been " << empty_counter << " empty articles.";
   return output;
   }
 
@@ -1231,4 +1211,714 @@ class_<LDA>( "LDA" )
 ;
 }                     
 
+class TwitterNews{
+public:
+  TwitterNews(Reference Obj);
+  int K; // K: number of topics
+  int W; // W: size of Vocabulary
+  int D; // D: number of documents
+  int S; // S: number of news sources
+  double alpha; // hyper-parameter for Dirichlet prior on theta
+  double beta; //  hyper-parameter for Dirichlet prior on phi
+  double tau;  // hyper-parameter for Dirichlet prior on kappa
+  double gamma; // hyper-parameter for Gamma prior on lambda (shape)
+  double delta; // hyper-parameter for Gamma prior on lambda (rate)
+  vector<string> content; // vector of article body texts
+  vector<string> article_preview; 
+  vector<string> url; // vector of article links
+  vector<string> title; // vector of article title
+  vector< vector<int> >  w_num;
+  vector< vector<string> > w;
+  vector<int> z; // topic assignments for each document
+  vector<int> s; // newspaper source (int)
+  vector<int> c; // number of citations
+  vector<string> s_string; // newspaper source (string)
+  vector<int> nd_sum;
+  vector<int> nk;
+  vector<int> ns;
+  vector<int> nw_sum;
+  arma::Mat<int> nd;
+  arma::Mat<int> nw;
+  arma::Mat<int> N_dw;
+  arma::Mat<int> nsk;
+  arma::Mat<int> csk;
+  arma::mat PhiProdMat;
+  NumericMatrix phi_avg;
+  NumericMatrix theta_avg;
+  NumericMatrix lambda_avg;
+  NumericVector kappa_avg;
+  NumericMatrix prob_s;
+  arma::mat n_wd;
+  arma::mat z_mat;
+  vector< vector<int> >  z_list;
+  vector< NumericMatrix > phi_list;
+  vector< NumericMatrix > theta_list;
+  vector<string> Vocabulary; // vector storing all (unique) words of vocabulary
+  vector<string> Newspapers; // vector storing all newspapers
+  boost::mt19937 rng; // seed for random sampling
+  vector<string> stopwords_en;
+  vector<string> stopwords_de;
+  string stop_de_path;
+  string stop_en_path;
+  
+  enum language 
+  {
+  ENGLISH = 0, 
+  GERMAN = 1
+  };
+  vector<std::string> read_stopwords(int lang);
+  vector<std::string> eliminate_stopwords(vector<std::string> input);
+  
+  void PreProcessText();
+  void ExtractWords();
+  void ConstructVocabulary();
+  void CreateNewspapers();
+  void InitSampling();
+  vector<string> remove_empty_articles(vector<string> input, vector<int> empty);
+  vector<int> mark_empty_articles(vector<string> input);
+  int SampleZ();
+  
+  void collapsedGibbs(int iter, int burnin, int thin);
+  void getParameterEstimates();
+  vector<double> get_kappa_estimates();
+  arma::mat get_prob_s();
+  arma::mat get_lambda_estimates();
+  arma::mat get_theta_estimates();
+  arma::mat get_phi_estimates();
 
+  CharacterVector TopicTerms(int k, int no);
+  CharacterMatrix Terms(int k);
+  arma::rowvec rDirichlet(arma::rowvec param, int length);
+  arma::rowvec rDirichlet2(arma::rowvec param, int length);
+  arma::mat DrawFromProposal(arma::mat phi_current);
+  arma::mat InitPhiMat();
+  List getPhiList();
+  List getZList();
+  
+  double rgamma_cpp(double alpha);
+  double rbeta_cpp(double shape1, double shape2);
+  double rnorm_cpp(double mean, double sd);
+
+  double LogPhiProd(arma::mat phi); 
+  vector<double> LogPhiProd_vec(arma::mat phi);
+  
+private:
+  vector< vector<int> > CreateIntMatrix(List input);
+  double sigma; // for Langevin sampler
+  
+  NumericMatrix get_phis();
+  NumericMatrix get_thetas();
+  NumericMatrix MatrixToR(NumericMatrix input);
+  NumericMatrix avgMatrix(NumericMatrix A, NumericMatrix B, int weight);
+  arma::mat getTDM(int W, int D, vector< vector<int> > w_num);
+  
+  double ProposalDensity(arma::mat phi);
+  double ArrayMax(double array[], int numElements);
+  double ArrayMin(double array[], int numElements);
+  
+};
+
+TwitterNews::TwitterNews(Reference Obj)
+  {     
+  content = as<vector<string> >(Obj.field("corpus"));
+  s_string = as<vector<string> >(Obj.field("published_in"));
+  c = as<vector<int> >(Obj.field("citations"));
+  
+  vector<int> empty_articles = mark_empty_articles(content);
+  content = remove_empty_articles(content, empty_articles);
+  D = content.size(); 
+  
+  for (int d=0;d<D;d++)
+    {
+    string current_preview = content[d].substr(0,250);
+    article_preview.push_back(current_preview);   
+    }
+    
+  url = as<vector<string> >(Obj.field("url"));
+  url = remove_empty_articles(url, empty_articles);
+  
+  title = as<vector<string> >(Obj.field("title"));
+  title = remove_empty_articles(title, empty_articles);
+  
+  K = as<int>(Obj.field("K"));
+  
+  stop_de_path = as<string>(Obj.field("stop_de_path"));
+  stop_en_path = as<string>(Obj.field("stop_en_path"));
+  stopwords_en =  read_stopwords(ENGLISH);
+  stopwords_de =  read_stopwords(GERMAN);
+  
+  alpha = Obj.field("alpha");
+  beta = Obj.field("beta");
+  tau = Obj.field("tau");
+  gamma = Obj.field("gamma");
+  delta = Obj.field("delta");
+  sigma = 0.00001;
+  
+  PreProcessText();
+  ExtractWords();
+  ConstructVocabulary();
+  CreateNewspapers();
+  S = Newspapers.size();
+  W = Vocabulary.size();
+  InitSampling();
+  n_wd = getTDM(W, D, w_num);
+  
+  };
+  
+  void TwitterNews::PreProcessText()
+  {
+  for (int d=0;d<D;d++)
+    {
+    boost::algorithm::to_lower(content[d]);
+    content[d] = remove_numbers(content[d]);
+    content[d] = remove_punctuation(content[d]);
+    content[d] = remove_special_characters(content[d]);
+    content[d] = remove_whitespace(content[d]);
+    }
+  };
+
+void TwitterNews::ExtractWords()
+  {
+  for (int d=0;d<D;d++)
+    {
+    vector<string> wd = isolate_words(content[d]);
+    wd = eliminate_empty_words(wd);
+    wd = eliminate_stopwords(wd);
+    w.push_back(wd);
+    }
+  };
+
+void TwitterNews::ConstructVocabulary()
+  {
+  int pos = 0;
+  vector<vector<int> > w_num_temp(D);
+  for (int d=0;d<D;d++)
+    {
+      int nd = w[d].size();
+      for (int i=0;i<nd;i++)
+      {
+      string target = w[d][i]; 
+      vector<string>::iterator it = std::find(Vocabulary.begin(), Vocabulary.end(), target);
+      bool isPresent = (it != Vocabulary.end());
+      if (isPresent==false) 
+        {
+        Vocabulary.push_back(target);
+        w_num_temp[d].push_back(pos);
+        pos += 1;
+        }
+      else
+        {
+        int index = std::distance(Vocabulary.begin(), it);
+        w_num_temp[d].push_back(index); 
+        }
+      }
+    }
+  w_num = w_num_temp;
+  }
+  
+void TwitterNews::CreateNewspapers()
+  {
+  int pos = 0;
+  vector<int> s_temp(D);
+  for (int d=0;d<D;d++)
+    {
+      string target = s_string[d];
+      vector<string>::iterator it = std::find(Newspapers.begin(), Newspapers.end(), target);
+      bool isPresent = (it != Newspapers.end());
+      if (isPresent==false) 
+        {
+        Newspapers.push_back(target);
+        s_temp[d] = pos;
+        pos += 1;
+        }
+      else
+        {
+        int index = std::distance(Newspapers.begin(), it);
+        s_temp[d] = index; 
+        }
+      }
+  s = s_temp;
+  }
+  
+  
+vector<int> TwitterNews::mark_empty_articles(vector<string> input)
+  {
+  int len = input.size();
+  int empty_counter = 0;
+  vector<int> nonempty_articles;
+  for (int i = 0; i < len; i++)
+    {
+    if (input[i] == "") empty_counter++;
+    else nonempty_articles.push_back(i);    
+    }
+  Rcout << "Articles with empty content were marked. There are" << empty_counter << " empty articles.";
+  return nonempty_articles;
+  }
+  
+vector<string> TwitterNews::remove_empty_articles(vector<string> input, vector<int> nonempty)
+  {
+  int len = input.size();
+  int empty_counter = 0;
+  vector<string> output;
+  
+  for(std::vector<int>::iterator it = nonempty.begin(); it != nonempty.end(); ++it) 
+    {
+    Rcout << *it; 
+    output.push_back(input[*it]);
+    }
+  return output;
+  }
+
+int TwitterNews::SampleZ()  
+  {
+  boost::uniform_int<> dist(0, K-1);
+  boost::variate_generator<boost::mt19937&, boost::uniform_int<> > sample(rng, dist);
+  return sample();
+  }
+  
+void TwitterNews::InitSampling()
+  {
+    vector<int> nk_temp(K,0);
+    arma::Mat<int> nsk_temp(S,K);
+    nsk_temp.zeros();
+    arma::Mat<int> csk_temp(S,K);
+    csk_temp.zeros();
+    vector<int> ns_temp(S,0);
+    arma::Mat<int> nw_temp(W,K);
+    nw_temp.zeros();
+    arma::Mat<int> N_dw_temp(D,W);
+    N_dw_temp.zeros();
+    vector<int> nw_sum_temp(K,0);
+    vector<int> z_temp(D);
+      		
+	  for (int d=0; d<D; d++)
+    {		
+    int topic = SampleZ();
+    int source = s[d];
+    
+    nk_temp[topic] = nk_temp[topic] + 1;
+    z_temp[d] = topic;
+    ns_temp[source] = ns_temp[source] + 1;
+    nsk_temp(source,topic) = nsk_temp(source,topic) + 1;
+    csk_temp(source,topic) = csk_temp(source,topic) + c[d];
+    
+    int len = w_num[d].size();			
+			for (int i=0; i<len; i++)
+			{
+  				int wtemp = w_num[d][i];
+				  // number of instances of word i appears in documents of topic j
+  				nw_temp(wtemp,topic) += 1;
+				  // total number of words assigned to topic j           
+  				nw_sum_temp[topic] += 1;
+          // number of times word i appears in document d
+          N_dw_temp(d,wtemp) += 1;
+			}
+    }
+    
+  nk = nk_temp;
+  nsk = nsk_temp;
+  csk = csk_temp;
+  ns = ns_temp;
+  nw_sum = nw_sum_temp; 
+  nw = nw_temp;
+  z = z_temp;
+  N_dw = N_dw_temp;
+  }
+  
+vector<std::string> TwitterNews::read_stopwords(int lang)
+  {
+  vector<std::string> output;
+  string line;
+  
+  const char * stop_en_char = stop_en_path.c_str();
+  const char * stop_de_char = stop_de_path.c_str();
+    
+  ifstream myfile(stop_en_char);
+  ifstream myfile2(stop_de_char);
+  
+  switch(lang){
+  case ENGLISH:   
+  // Rcout << "Das ist Englisch";
+    if (myfile.is_open())
+    {
+      while ( myfile.good() )
+      {
+        getline (myfile,line);
+        output.push_back(line);
+      }
+      myfile.close();
+    }    
+    
+  break;
+  case GERMAN:
+      if (myfile2.is_open())
+    {
+      while ( myfile2.good() )
+      {
+        getline (myfile2,line);
+        output.push_back(line);
+      }
+      myfile2.close();
+    }    
+  
+  break; 
+  default: 
+  
+  break;
+  }  
+  return output;  
+  }
+
+vector<string> TwitterNews::eliminate_stopwords(vector<string> input)
+  {
+  // Rcout << "Laenge des Inputs" << input.size();
+  vector<string> output;
+  
+  int input_length = input.size();
+  for (int i = 0; i<input_length; i++)
+    {
+      
+     string target = input[i];
+     vector<string>::iterator it = std::find(stopwords_en.begin(), stopwords_en.end(), target);
+     if (it == stopwords_en.end()) 
+     {
+     vector<string>::iterator it_de = std::find(stopwords_de.begin(), stopwords_de.end(), target);
+     if (it_de == stopwords_de.end()) output.push_back(target);
+     }
+          
+    }
+    
+  // Rcout << "Lange des Output" << output.size();
+  return output;  
+  }
+  
+void TwitterNews::collapsedGibbs(int iter, int burnin, int thin)
+ {
+  
+  for (int i = 0; i < iter; ++i)
+  {
+    for (int d = 0; d < D; ++d)
+      {        
+      int sd = s[d];
+      int old_topic = z[d];
+      vector<double>  prob(K);
+      
+      for(int j=0; j<K; j++)
+        {
+        double nsk_sj = nsk(sd,j);
+        double csj = csk(sd,j);
+        double citation_term = 
+        (csj + gamma - c[d]) * log(nsk_sj + delta - 1) -
+                  (csj + gamma) * log(nsk_sj + delta);    
+        
+        double source_gamma_term = lgamma(csj + gamma) - lgamma(csj + gamma -c[d]);
+        
+        double source_term = log(nsk_sj + alpha - 1) - log(ns[sd]+ K * alpha - 1);
+        
+        int len = w_num[d].size();
+        double topic_term = lgamma(nw_sum[j] + W * beta - len) - lgamma(nw_sum[j] + W * beta);      
+        
+        double w_sum = 0;
+        for(int w=0;w<W;w++)
+          {
+          double nw_wj = nw(w,j);
+          double Ndw = N_dw(d,w);
+          double summand = lgamma(nw_wj + beta) - lgamma(nw_wj + beta - Ndw);
+          // Rcout << summand;
+          w_sum += summand;
+          }
+        
+        prob[j] = citation_term + source_gamma_term +  source_term + topic_term + w_sum;
+        prob[j] = prob[j] / 1000;
+        //Rcout << "w_sum:" << w_sum << "\n";
+        // Rcout << "Prob for class" << j << ":" << prob[j] << " ";
+        }
+        
+      // Normalize prob vector
+      int sum = std::accumulate(prob.begin(), prob.end(), 0);
+      for (int j = 0; j < K; j++)
+        {
+        prob[j] = prob[j] / sum;
+        }
+               
+      for (int r = 1; r < K; ++r)
+        {
+        prob[r] = prob[r] + prob[r - 1];
+        }
+
+      double u  = prob[K-1] * rand() / double(RAND_MAX);
+
+      int new_topic = 0; // set up new topic
+
+      for (int nt = 0 ; nt < K; ++nt)
+          {
+          if (prob[nt] > u)
+            {
+            new_topic = nt;
+            break;
+            }
+          }
+          
+    // remove z_d from counts
+    nsk(sd,old_topic) -= 1;
+    csk(sd,old_topic) -= c[d];
+    nk[old_topic] -= 1;
+
+    //assign new z_d to counts
+    nsk(sd,new_topic) += 1;
+    csk(sd,new_topic) += c[d];
+    nk[new_topic] += 1;
+    
+    for(int w=0;w<W;w++)
+          {
+          nw(w,old_topic)  -= n_wd(w,d);
+          nw(w,new_topic)  += n_wd(w,d);
+          }
+     
+    for(int k=0;k<K;k++)
+        {
+        arma::Col<int> nw_col = nw.col(k);
+        nw_sum[k] = arma::accu(nw_col);
+        }
+    
+     z[d] = new_topic;
+
+      }
+         
+     Rcout << "--- END OF DOCUMENTS --- ";
+     if (i % thin == 0 && i > burnin)
+           {
+           z_list.push_back(z);  
+           getParameterEstimates();
+           }
+
+    }
+    Rcout << "--- END OF ITERATIONS ---";  
+  }
+  
+NumericMatrix TwitterNews::avgMatrix(NumericMatrix A, NumericMatrix B, int weight)
+  {
+  int nrow = A.nrow();
+  int ncol = A.ncol();
+  NumericMatrix C(nrow,ncol);
+
+  float wf = (float) weight;
+  float propA = (wf-1) / wf;
+  float propB = 1 / wf;
+
+  for (int i=0; i<nrow;i++)
+  {
+    for (int j=0; j<ncol;j++)
+    {
+    C(i,j) =  propA * A(i,j) + propB * B(i,j);
+    }
+  }
+
+  return C;
+  }
+  
+  
+void TwitterNews::getParameterEstimates()
+ {
+  int weight = z_list.size();
+  for (int i=0;i<weight;i++)
+    {
+    arma::mat phi_current = get_phi_estimates();
+    arma::mat theta_current = get_theta_estimates();
+    arma::mat lambda_current = get_lambda_estimates();
+    arma::mat prob_s_current = get_prob_s();
+    vector<double> kappa_current = get_kappa_estimates();
+    
+    NumericMatrix prob_s_add = wrap(prob_s_current);
+    NumericMatrix phi_add = wrap(phi_current);  
+    NumericMatrix theta_add = wrap(theta_current);  
+    NumericMatrix lambda_add = wrap(lambda_current);  
+    NumericVector kappa_add = wrap(get_kappa_estimates());
+  
+    if (i == 0) 
+     {
+     phi_avg = phi_add;
+     theta_avg = theta_add;
+     lambda_avg = lambda_add;
+     kappa_avg = kappa_add;
+     prob_s = prob_s_add;
+     }
+    else 
+      {
+      phi_avg = avgMatrix(phi_avg, phi_add, weight);
+      theta_avg = avgMatrix(theta_avg, theta_add, weight);
+      lambda_avg = avgMatrix(lambda_avg, lambda_add, weight);
+      prob_s = avgMatrix(prob_s, prob_s_add, weight);
+      }
+    }   
+ }
+  
+vector<double> TwitterNews::get_kappa_estimates()
+  {
+  vector<double> kappa(S);
+  for (int s=0;s<S;s++)
+    {
+    double res = (ns[s] + tau) / (D + S * tau);
+    kappa[s] = res;  
+    }
+  return kappa;
+  }
+  
+arma::mat TwitterNews::get_prob_s()
+  {
+  arma::mat prob_mat(D,S);
+  prob_mat.zeros();
+  
+  for (int d=0;d<D;d++)
+    {
+    arma::rowvec prob_vec(S);
+    for (int s=0;s<S;s++)
+      {
+      double nsk_sz = nsk(s,z[d]);
+      double T1 = log(nsk_sz + tau - 1) - log(D + K * tau - 1);
+      double T2 = log(nsk_sz + alpha -1) - log(ns[s] + K*alpha - 1);
+      double csk_sz = csk(s,z[d]);
+      double T3 = lgamma(csk_sz + gamma) - lgamma(csk_sz + gamma - c[d]);
+      double T4 = (csk_sz + gamma - c[d]) * log(nsk_sz + delta - 1) - (csk_sz + gamma) * log(nsk_sz + delta);
+      prob_vec[s] = exp(T1 + T2 + T3 + T4);
+      Rcout << prob_vec[s];
+      } 
+    double prob_sum = norm(prob_vec, 2);  
+    prob_mat.row(d) = prob_vec / prob_sum;  
+    }  
+  return prob_mat;
+  }
+    
+arma::mat TwitterNews::get_lambda_estimates()
+  {
+  arma::mat lambda(S,K);
+  for (int s=0;s<S;s++)
+    for (int k=0;k<K;k++)
+      {
+      double csk_sk = csk(s,k);
+      double nsk_sk = nsk(s,k);
+      lambda(s,k) = (csk_sk + gamma) / (nsk_sk + delta); 
+      }
+  return lambda;
+  }
+  
+arma::mat TwitterNews::get_phi_estimates()
+  {
+  arma::mat phi(K,W);
+  phi.zeros();
+  for (int k=0;k<K;k++)
+    for (int w=0;w<W;w++)
+    {
+    double n_kw = nw(w,k);
+    phi(k,w) = (n_kw + beta) / (nw_sum[k] + W * beta);
+    }
+  return phi;
+  }
+  
+arma::mat TwitterNews::get_theta_estimates()
+  {
+  arma::mat theta(S,K);  
+  for (int s=0;s<S;s++)
+    for (int k=0;k<K;k++)
+      {
+      double nsk_sk = nsk(s,k);
+      theta(s,k) = (nsk_sk + alpha) / (ns[s] + K * alpha);
+      }
+  return theta;
+  }
+  
+arma::mat TwitterNews::getTDM(int W, int D, vector< vector<int> > w_num) 
+  {
+  arma::mat tdm(W,D);
+  for (int d=0; d<D; ++d)
+   for (int w=0; w<W; ++w)
+    {
+    int freq = 0;
+    vector<int> current_w = w_num[d];
+    int wlen = current_w.size();
+    for (int l=0; l<wlen; ++l)
+      {
+      if(current_w[l] == w) freq += 1;
+      }
+  
+     tdm(w,d) = freq;
+    }
+  return tdm;
+  }
+  
+CharacterVector TwitterNews::TopicTerms(int k, int no)
+  {
+  vector<double> k_phi(W);
+  NumericVector k_phi_R = phi_avg(k,_);
+  k_phi = as<vector<double> > (k_phi_R);
+  NumericVector ret_vector(no);
+
+  for (int i=0;i<no;i++)
+    {
+    std::vector<double>::iterator result;
+    result = std::max_element(k_phi.begin(),k_phi.end());
+    int biggest_id = std::distance(k_phi.begin(), result);
+    ret_vector[i] = biggest_id;
+    k_phi[biggest_id] = 0;
+    }
+
+  CharacterVector ret_char_vector(no);
+
+  for (int i=0;i<no;i++)
+    {
+    ret_char_vector[i] = Vocabulary[ret_vector[i]];
+    }
+
+  return ret_char_vector;
+  }
+
+CharacterMatrix TwitterNews::Terms(int k)
+  {
+  CharacterMatrix ret(K,k);
+  for (int i = 0; i < K; i++)
+    {
+    CharacterVector temp = TopicTerms(i,k);
+    ret(i,_) =  temp;
+    }
+  return ret;
+  }
+  
+RCPP_MODULE(yada2){
+class_<TwitterNews>( "TwitterNews" )
+.constructor<Reference>()
+.field("content",&TwitterNews::content)
+.field("url",&TwitterNews::url)
+.field("title",&TwitterNews::title)
+.field( "n_wd", &TwitterNews::n_wd)
+.field( "z", &TwitterNews::z)
+.field( "c", &TwitterNews::c)
+.field( "s", &TwitterNews::s)
+.field("nk",&TwitterNews::nk)
+.field( "nw_sum", &TwitterNews::nw_sum)
+.field("nw",&TwitterNews::nw)
+.field("nsk",&TwitterNews::nsk)
+.field( "csk", &TwitterNews::csk)
+.field("ns",&TwitterNews::ns)
+.field("K", &TwitterNews::K)
+.field("D",&TwitterNews::D)
+.field("W",&TwitterNews::W)
+.field("N_dw",&TwitterNews::N_dw)
+.field("S",&TwitterNews::S)
+.field("alpha",&TwitterNews::alpha)
+.field("beta",&TwitterNews::beta)
+.field("z_mat",&TwitterNews::z_mat)
+.field("Vocabulary",&TwitterNews::Vocabulary)
+.field("Newspapers",&TwitterNews::Newspapers)
+.field("stop_en_path",&TwitterNews::stop_en_path)
+.field("phi_avg",&TwitterNews::phi_avg)
+.field("theta_avg",&TwitterNews::theta_avg)
+.field("lambda_avg",&TwitterNews::lambda_avg)
+.field("kappa_avg",&TwitterNews::kappa_avg)
+.field("prob_s",&TwitterNews::prob_s)
+.field("PhiProdMat",&TwitterNews::PhiProdMat)
+.field("article_preview",&TwitterNews::article_preview)
+.method("collapsedGibbs",&TwitterNews::collapsedGibbs)
+.method("get_phi_estimates",&TwitterNews::get_phi_estimates)
+.method("Terms",&TwitterNews::Terms)
+;
+}     

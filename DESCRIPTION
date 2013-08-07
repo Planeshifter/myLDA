@@ -8,6 +8,6 @@ Maintainer: Philipp Burckhardt <philipp.burckhardt@mansfield.ox.ac.uk>
 Description: More about what it does (maybe more than one line)
 License: What license is it under?
 Depends: methods, Rcpp (>= 0.10.3), RcppArmadillo (>= 0.3.900.0)
-Imports: RJSONIO, newscrapeR
+Imports: RJSONIO, newscrapeR, nloptwrap
 LinkingTo: Rcpp, RcppArmadillo
-RcppModules: yada
+RcppModules: yada, yada2
